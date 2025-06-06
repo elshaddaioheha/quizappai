@@ -23,7 +23,7 @@ def create_app():
     
     # Configuration
     app.config['SECRET_KEY'] = 'your-secret-key-here-change-in-production'
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:Ledimo2003%@localhost/quiz'
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:Jetta2019$$@localhost/quiz'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['UPLOAD_FOLDER'] = os.path.join(project_root, 'uploads')
     app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max file size
