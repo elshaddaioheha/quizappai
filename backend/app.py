@@ -28,9 +28,16 @@ logger = logging.getLogger(__name__)
 
 def create_app():
     """Create and configure the Flask application"""
-    
-    # Create Flask app with correct template and static paths
-    app = Flask(__name__)
+
+    # Set correct paths for templates and static files
+    template_dir = os.path.join(project_root, 'app', 'templates')
+    static_dir = os.path.join(project_root, 'app', 'static')
+
+    app = Flask(
+        __name__,
+        template_folder=template_dir,
+        static_folder=static_dir
+    )
     
     # Configuration
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
