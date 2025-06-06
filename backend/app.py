@@ -30,9 +30,7 @@ def create_app():
     """Create and configure the Flask application"""
     
     # Create Flask app with correct template and static paths
-    app = Flask(__name__, 
-                template_folder=os.path.join(project_root, 'app', 'templates'),
-                static_folder=os.path.join(project_root, 'app', 'static'))
+    app = Flask(__name__)
     
     # Configuration
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
@@ -826,3 +824,4 @@ if __name__ == '__main__':
     print("📍 Server: http://localhost:5000")
     print("✅ Open your browser and navigate to the URL above!")
     app.run(host='0.0.0.0', port=5000, debug=True)
+
