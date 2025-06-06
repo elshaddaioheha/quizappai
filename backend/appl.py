@@ -5,6 +5,10 @@ import os
 import logging
 import traceback
 
+# Load environment variables from .env if present (for local dev)
+from dotenv import load_dotenv
+load_dotenv()
+
 # Add project root to Python path for imports
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
@@ -31,8 +35,11 @@ def create_app():
                 static_folder=os.path.join(project_root, 'app', 'static'))
     
     # Configuration
-    app.config['SECRET_KEY'] = 'your-secret-key-here-change-in-production'
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:Ledimo2003%@localhost/quiz'
+    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
+        'DATABASE_URL',
+        'mysql+pymysql://root:password@localhost/quiz'
+    )
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['UPLOAD_FOLDER'] = os.path.join(project_root, 'uploads')
     app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max file size
@@ -253,17 +260,13 @@ def create_app():
             # Find user by email
             user = User.query.filter_by(email=email).first()
             
-            # For demo purposes, create user if not exists
+            # REMOVE: Demo user auto-creation for security
             if not user:
-                user = User(
-                    first_name="Demo",
-                    last_name="User", 
-                    email=email
-                )
-                user.set_password(password)
-                db.session.add(user)
-                db.session.commit()
-                logger.info(f"✅ Created demo user: {email}")
+                logger.warning(f"Login attempt for non-existent user: {email}")
+                return jsonify({
+                    'success': False,
+                    'error': 'Invalid email or password'
+                }), 401
             
             # Check password
             if user.check_password(password):
@@ -318,13 +321,12 @@ def create_app():
         
         # Handle POST request for quiz creation
         try:
-            print("🎯 STARTING QUIZ CREATION...")
             logger.info("🎯 Starting quiz creation...")
             
             # Debug: Print all form data
-            print("📋 FORM DATA RECEIVED:")
+            logger.info("📋 FORM DATA RECEIVED:")
             for key, value in request.form.items():
-                print(f"  {key}: {value}")
+                logger.info(f"  {key}: {value}")
             
             # Get form data with better error handling
             quiz_title = request.form.get('title', 'AI Generated Quiz') or 'AI Generated Quiz'
@@ -336,26 +338,26 @@ def create_app():
             difficulty = request.form.get('difficulty', 'medium') or 'medium'
             question_types = request.form.get('questionTypes', 'mixed') or 'mixed'
             
-            print(f"📋 PARSED SETTINGS: {quiz_title}, {num_questions} questions, {difficulty} difficulty, {question_types} types")
+            logger.info(f"📋 PARSED SETTINGS: {quiz_title}, {num_questions} questions, {difficulty} difficulty, {question_types} types")
             
             # Process PDF file if uploaded
             pdf_text = "Educational content about learning and study skills. Active learning involves engaging with material through questioning and analysis."
             
-            print("📁 CHECKING FOR PDF FILE...")
+            logger.info("📁 CHECKING FOR PDF FILE...")
             if 'pdf_file' in request.files:
                 file = request.files['pdf_file']
-                print(f"📁 FILE RECEIVED: {file.filename if file else 'None'}")
+                logger.info(f"📁 FILE RECEIVED: {file.filename if file else 'None'}")
                 
                 if file and file.filename and allowed_file(file.filename):
                     try:
                         filename = secure_filename(file.filename)
                         file_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{current_user.id}_{filename}")
                         file.save(file_path)
-                        print(f"💾 FILE SAVED: {filename}")
+                        logger.info(f"💾 FILE SAVED: {filename}")
                         
                         # Extract text from PDF
                         pdf_text = extract_text_from_pdf(file_path)
-                        print(f"📖 EXTRACTED {len(pdf_text)} CHARACTERS FROM PDF")
+                        logger.info(f"📖 EXTRACTED {len(pdf_text)} CHARACTERS FROM PDF")
                         
                         # Save PDF upload record
                         try:
@@ -368,19 +370,19 @@ def create_app():
                             )
                             db.session.add(pdf_upload)
                             db.session.flush()
-                            print("✅ PDF UPLOAD RECORD SAVED")
+                            logger.info("✅ PDF UPLOAD RECORD SAVED")
                         except Exception as pdf_error:
-                            print(f"⚠️ ERROR SAVING PDF RECORD: {str(pdf_error)}")
+                            logger.warning(f"⚠️ ERROR SAVING PDF RECORD: {str(pdf_error)}")
                             # Continue anyway
                     except Exception as file_error:
-                        print(f"❌ ERROR PROCESSING FILE: {str(file_error)}")
+                        logger.error(f"❌ ERROR PROCESSING FILE: {str(file_error)}")
                 else:
-                    print("⚠️ NO VALID PDF FILE, USING DEFAULT TEXT")
+                    logger.warning("⚠️ NO VALID PDF FILE, USING DEFAULT TEXT")
             else:
-                print("⚠️ NO PDF_FILE IN REQUEST, USING DEFAULT TEXT")
+                logger.warning("⚠️ NO PDF_FILE IN REQUEST, USING DEFAULT TEXT")
             
             # Generate questions using AI
-            print("🤖 STARTING QUIZ GENERATION...")
+            logger.info("🤖 STARTING QUIZ GENERATION...")
             try:
                 generator = GeminiQuizGenerator()
                 settings = {
@@ -390,12 +392,12 @@ def create_app():
                     'questionTypes': question_types
                 }
                 
-                print(f"🤖 CALLING GENERATOR WITH SETTINGS: {settings}")
+                logger.info(f"🤖 CALLING GENERATOR WITH SETTINGS: {settings}")
                 quiz_data = generator.generate_quiz_from_text(pdf_text, settings)
-                print(f"✅ AI GENERATED {quiz_data['total_questions']} QUESTIONS")
+                logger.info(f"✅ AI GENERATED {quiz_data['total_questions']} QUESTIONS")
                 
             except Exception as gen_error:
-                print(f"❌ QUIZ GENERATION FAILED: {str(gen_error)}")
+                logger.error(f"❌ QUIZ GENERATION FAILED: {str(gen_error)}")
                 # Fallback quiz data
                 quiz_data = {
                     'title': quiz_title,
@@ -426,10 +428,10 @@ def create_app():
                         }
                     ]
                 }
-                print("✅ USING FALLBACK QUIZ DATA")
+                logger.info("✅ USING FALLBACK QUIZ DATA")
             
             # Save to database
-            print("💾 SAVING QUIZ TO DATABASE...")
+            logger.info("💾 SAVING QUIZ TO DATABASE...")
             try:
                 quiz = Quiz(
                     title=quiz_data['title'],
@@ -441,11 +443,11 @@ def create_app():
                 )
                 db.session.add(quiz)
                 db.session.flush()
-                print(f"✅ QUIZ SAVED WITH ID: {quiz.id}")
+                logger.info(f"✅ QUIZ SAVED WITH ID: {quiz.id}")
                 
                 # Create questions and answers
                 for idx, question_data in enumerate(quiz_data['questions']):
-                    print(f"💾 SAVING QUESTION {idx + 1}...")
+                    logger.info(f"💾 SAVING QUESTION {idx + 1}...")
                     question = QuizQuestion(
                         quiz_id=quiz.id,
                         question_text=question_data['question_text'],
@@ -454,7 +456,7 @@ def create_app():
                     )
                     db.session.add(question)
                     db.session.flush()
-                    print(f"✅ QUESTION SAVED WITH ID: {question.id}")
+                    logger.info(f"✅ QUESTION SAVED WITH ID: {question.id}")
                     
                     for answer_data in question_data['answers']:
                         answer = QuizAnswer(
@@ -463,25 +465,25 @@ def create_app():
                             is_correct=answer_data['is_correct']
                         )
                         db.session.add(answer)
-                    print(f"✅ {len(question_data['answers'])} ANSWERS SAVED FOR QUESTION {question.id}")
+                    logger.info(f"✅ {len(question_data['answers'])} ANSWERS SAVED FOR QUESTION {question.id}")
                 
                 db.session.commit()
-                print("✅ ALL DATA COMMITTED TO DATABASE!")
+                logger.info("✅ ALL DATA COMMITTED TO DATABASE!")
                 
                 # Redirect to take the quiz
-                print(f"🎯 REDIRECTING TO QUIZ {quiz.id}")
+                logger.info(f"🎯 REDIRECTING TO QUIZ {quiz.id}")
                 return redirect(url_for('take_quiz', quiz_id=quiz.id))
                 
             except Exception as db_error:
-                print(f"❌ DATABASE ERROR: {str(db_error)}")
+                logger.error(f"❌ DATABASE ERROR: {str(db_error)}")
                 db.session.rollback()
                 raise db_error
             
         except Exception as e:
             db.session.rollback()
-            print(f"❌ MAJOR ERROR CREATING QUIZ: {str(e)}")
-            print(f"❌ ERROR TYPE: {type(e).__name__}")
-            print("❌ FULL TRACEBACK:")
+            logger.error(f"❌ MAJOR ERROR CREATING QUIZ: {str(e)}")
+            logger.error(f"❌ ERROR TYPE: {type(e).__name__}")
+            logger.error("❌ FULL TRACEBACK:")
             traceback.print_exc()
             
             # Return error page instead of redirect for debugging
