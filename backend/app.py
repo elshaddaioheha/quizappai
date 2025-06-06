@@ -832,3 +832,12 @@ if __name__ == '__main__':
     print("✅ Open your browser and navigate to the URL above!")
     app.run(host='0.0.0.0', port=5000, debug=True)
 
+# Install Flask if not already installed
+try:
+    from flask import Flask
+    logger.info("✅ Flask is already installed")
+except ImportError:
+    logger.info("🚨 Flask not found, installing...")
+    os.system('pip install flask')
+    logger.info("✅ Flask installed successfully")
+
